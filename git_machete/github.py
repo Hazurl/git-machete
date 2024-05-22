@@ -200,6 +200,7 @@ class GitHubClient(CodeHostingClient):
             head_repo_id=pr_json['head']['repo']['id'],
             html_url=pr_json['html_url'],
             state=pr_json['state'],
+            title=pr_json['title'],
             description=pr_json['body'])
 
     def __fire_github_api_request(self, method: str, path: str, request_body: dict[str, Any] | None = None) -> Any:

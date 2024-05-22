@@ -14,6 +14,7 @@ class PullRequest(NamedTuple):
     head: str
     head_repo_id: int
     state: str
+    title: str
     description: str | None
     html_url: str
 
@@ -22,7 +23,7 @@ class PullRequest(NamedTuple):
 
     def display_text(self, fmt: bool = True) -> str:
         number = str(self.number)
-        return f"{self.display_prefix}{bold(number) if fmt else number}"
+        return f"{self.display_prefix}{bold(number) if fmt else number} {self.title}"
 
     def __repr__(self) -> str:
         # repr is used in debug messages, let's turn off formatting

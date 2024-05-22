@@ -5,15 +5,18 @@ import re
 import shutil
 import urllib.error
 import urllib.parse
+
 # Deliberately NOT using much more convenient `requests` to avoid external dependencies in production code
 import urllib.request
-from typing import Any, Dict, List, NamedTuple, Optional
+from typing import Any, NamedTuple, Optional
 
-from git_machete.code_hosting import (CodeHostingClient,
-                                      CodeHostingGitConfigKeys,
-                                      CodeHostingSpec,
-                                      OrganizationAndRepositoryAndGitUrl,
-                                      PullRequest)
+from git_machete.code_hosting import (
+    CodeHostingClient,
+    CodeHostingGitConfigKeys,
+    CodeHostingSpec,
+    OrganizationAndRepositoryAndGitUrl,
+    PullRequest,
+)
 from git_machete.exceptions import MacheteException, UnexpectedMacheteException
 from git_machete.git_operations import LocalBranchShortName
 from git_machete.utils import compact_dict, debug, map_truthy_only, popen_cmd
@@ -98,7 +101,7 @@ class GitLabClient(CodeHostingClient):
 
     def __init__(self, spec: CodeHostingSpec, domain: str, organization: str, repository: str) -> None:
         super().__init__(spec, domain, organization, repository)
-        self.__token: Optional[GitLabToken] = GitLabToken.for_domain(domain)
+        self.__token: GitLabToken | None = GitLabToken.for_domain(domain)
 
     @classmethod
     def spec(cls) -> CodeHostingSpec:
@@ -135,7 +138,7 @@ class GitLabClient(CodeHostingClient):
             )
         )
 
-    def __get_merge_request_from_json(self, mr_json: Dict[str, Any]) -> PullRequest:
+    def __get_merge_request_from_json(self, mr_json: dict[str, Any]) -> PullRequest:
         return PullRequest(
             number=int(mr_json['iid']),
             display_prefix='MR !',
@@ -145,10 +148,11 @@ class GitLabClient(CodeHostingClient):
             head_repo_id=int(mr_json['source_project_id']),
             html_url=mr_json['web_url'],
             state=mr_json['state'],
+            title=mr_json['title'],
             description=mr_json['description'])
 
-    def __fire_gitlab_api_request(self, method: str, path: str, request_body: Optional[Dict[str, Any]] = None) -> Any:
-        headers: Dict[str, str] = {
+    def __fire_gitlab_api_request(self, method: str, path: str, request_body: dict[str, Any] | None = None) -> Any:
+        headers: dict[str, str] = {
             "Content-Type": "application/json"
         }
         if self.__token:
@@ -156,7 +160,7 @@ class GitLabClient(CodeHostingClient):
 
         url_prefix = 'https://' + self.domain + '/api/v4'
         url = url_prefix + path
-        json_body: Optional[str] = json.dumps(request_body) if request_body else None
+        json_body: str | None = json.dumps(request_body) if request_body else None
         http_request = urllib.request.Request(url, headers=headers, data=json_body.encode() if json_body else None, method=method.upper())
         debug(f'firing a {method} request to {url} with {"a" if self.__token else "no"} '
               f'bearer token and request body {compact_dict(request_body) if request_body else "<none>"}')
@@ -222,7 +226,7 @@ class GitLabClient(CodeHostingClient):
         except OSError as e:  # pragma: no cover
             raise MacheteException(f'Could not connect to {url_prefix}: {e}')
 
-    def __fire_gitlab_api_project_request(self, method: str, path_suffix: str, request_body: Optional[Dict[str, Any]] = None) -> Any:
+    def __fire_gitlab_api_project_request(self, method: str, path_suffix: str, request_body: dict[str, Any] | None = None) -> Any:
         project = urllib.parse.quote(f"{self.organization}/{self.repository}", safe='')  # `safe` empty, so that `/` is encoded as well
         path = f'/projects/{project}{path_suffix}'
         return self.__fire_gitlab_api_request(method=method, path=path, request_body=request_body)
@@ -238,7 +242,7 @@ class GitLabClient(CodeHostingClient):
             return str(response)
 
     def create_pull_request(self, head: str, base: str, title: str, description: str, draft: bool) -> PullRequest:
-        request_body: Dict[str, Any] = {
+        request_body: dict[str, Any] = {
             'source_branch': head,
             'target_branch': base,
             'title': ('Draft: ' if draft else '') + title,
@@ -247,33 +251,33 @@ class GitLabClient(CodeHostingClient):
         mr = self.__fire_gitlab_api_project_request(method='POST', path_suffix='/merge_requests', request_body=request_body)
         return self.__get_merge_request_from_json(mr)
 
-    def __get_user_id_by_username(self, username: str) -> Optional[int]:
+    def __get_user_id_by_username(self, username: str) -> int | None:
         result = self.__fire_gitlab_api_request(method='GET', path=f'/users?username={username}')
         if result:
             return int(result[0]["id"])
         else:
             return None
 
-    def add_assignees_to_pull_request(self, number: int, assignees: List[str]) -> None:
-        assignee_ids: List[int] = map_truthy_only(self.__get_user_id_by_username, assignees)
-        request_body: Dict[str, List[int]] = {'assignee_ids': assignee_ids}
+    def add_assignees_to_pull_request(self, number: int, assignees: list[str]) -> None:
+        assignee_ids: list[int] = map_truthy_only(self.__get_user_id_by_username, assignees)
+        request_body: dict[str, list[int]] = {'assignee_ids': assignee_ids}
         self.__fire_gitlab_api_project_request(method='PUT', path_suffix=f'/merge_requests/{number}', request_body=request_body)
 
-    def add_reviewers_to_pull_request(self, number: int, reviewers: List[str]) -> None:
-        reviewer_ids: List[int] = map_truthy_only(self.__get_user_id_by_username, reviewers)
-        request_body: Dict[str, List[int]] = {'reviewer_ids': reviewer_ids}
+    def add_reviewers_to_pull_request(self, number: int, reviewers: list[str]) -> None:
+        reviewer_ids: list[int] = map_truthy_only(self.__get_user_id_by_username, reviewers)
+        request_body: dict[str, list[int]] = {'reviewer_ids': reviewer_ids}
         self.__fire_gitlab_api_project_request(method='PUT', path_suffix=f'/merge_requests/{number}', request_body=request_body)
 
     def set_base_of_pull_request(self, number: int, base: LocalBranchShortName) -> None:
-        request_body: Dict[str, str] = {'target_branch': base}
+        request_body: dict[str, str] = {'target_branch': base}
         self.__fire_gitlab_api_project_request(method='PUT', path_suffix=f'/merge_requests/{number}', request_body=request_body)
 
     def set_description_of_pull_request(self, number: int, description: str) -> None:
-        request_body: Dict[str, str] = {'description': description}
+        request_body: dict[str, str] = {'description': description}
         self.__fire_gitlab_api_project_request(method='PUT', path_suffix=f'/merge_requests/{number}', request_body=request_body)
 
     def set_milestone_of_pull_request(self, number: int, milestone: str) -> None:
-        request_body: Dict[str, str] = {'milestone_id': milestone}
+        request_body: dict[str, str] = {'milestone_id': milestone}
         self.__fire_gitlab_api_project_request(method='PUT', path_suffix=f'/merge_requests/{number}', request_body=request_body)
 
     def set_draft_status_of_pull_request(self, number: int, target_draft_status: bool) -> bool:
@@ -294,33 +298,33 @@ class GitLabClient(CodeHostingClient):
         else:
             # Prefixes as per https://docs.gitlab.com/ee/user/project/merge_requests/drafts.html in March 2024
             new_title = re.sub(r'^(\[Draft]|Draft:|\(Draft\)) *', '', old_title)
-        request_body: Dict[str, str] = {'title': new_title}
+        request_body: dict[str, str] = {'title': new_title}
         self.__fire_gitlab_api_project_request(method='PUT', path_suffix=f'/merge_requests/{number}', request_body=request_body)
         return True
 
-    def get_open_pull_requests_by_head(self, head: LocalBranchShortName) -> List[PullRequest]:
+    def get_open_pull_requests_by_head(self, head: LocalBranchShortName) -> list[PullRequest]:
         mrs = self.__fire_gitlab_api_project_request(method='GET', path_suffix=f'/merge_requests?state=opened&source_branch={head}')
         return [self.__get_merge_request_from_json(mr) for mr in mrs]
 
-    def get_open_pull_requests(self) -> List[PullRequest]:
+    def get_open_pull_requests(self) -> list[PullRequest]:
         mrs = self.__fire_gitlab_api_project_request(method='GET',
                                                      path_suffix=f'/merge_requests?state=opened&per_page={self.MAX_PULLS_PER_PAGE_COUNT}')
         return [self.__get_merge_request_from_json(mr) for mr in mrs]
 
-    def get_current_user_login(self) -> Optional[str]:
+    def get_current_user_login(self) -> str | None:
         if not self.__token:
             return None
         user = self.__fire_gitlab_api_request(method='GET', path='/user')
         return str(user['username'])  # str() to satisfy mypy
 
-    def get_pull_request_by_number_or_none(self, number: int) -> Optional[PullRequest]:
+    def get_pull_request_by_number_or_none(self, number: int) -> PullRequest | None:
         try:
             mr_json = self.__fire_gitlab_api_project_request(method='GET', path_suffix=f'/merge_requests/{number}')
             return self.__get_merge_request_from_json(mr_json)
         except MacheteException:
             return None
 
-    def fetch_org_repo_and_git_url_by_repo_id_or_none(self, repo_id: int) -> Optional[OrganizationAndRepositoryAndGitUrl]:
+    def fetch_org_repo_and_git_url_by_repo_id_or_none(self, repo_id: int) -> OrganizationAndRepositoryAndGitUrl | None:
         try:
             project = self.__fire_gitlab_api_request(method='GET', path=f'/projects/{repo_id}')
             return OrganizationAndRepositoryAndGitUrl(
