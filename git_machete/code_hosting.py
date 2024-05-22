@@ -1,6 +1,6 @@
 import re
 from abc import ABCMeta, abstractmethod
-from typing import Dict, List, NamedTuple, Optional
+from typing import NamedTuple, Optional
 
 from git_machete.git_operations import LocalBranchShortName
 from git_machete.utils import bold
@@ -14,7 +14,7 @@ class PullRequest(NamedTuple):
     head: str
     head_repo_id: int
     state: str
-    description: Optional[str]
+    description: str | None
     html_url: str
 
     def short_display_text(self, fmt: bool = True) -> str:
@@ -57,7 +57,7 @@ class OrganizationAndRepositoryAndGitUrl(NamedTuple):
     git_url: str
 
 
-def remote_url_patterns(domain: str) -> List[str]:
+def remote_url_patterns(domain: str) -> list[str]:
     # Neither GitHub not GitLab allows trailing `.git` suffix in the repository name (also applies to multiple repetitions e.g. `repo_name.git.git`)
     # Note that these regexes work for both GitLab and GitHub.
     # The difference is only that the organization (or rather, "namespace") in GitLab might contain multiple `/`-separated segments.
@@ -72,7 +72,7 @@ def remote_url_patterns(domain: str) -> List[str]:
 
 def is_matching_remote_url(domain: str, url: str) -> bool:
     url = url if url.endswith('.git') else url + '.git'
-    return any((re.match(pattern, url) for pattern in remote_url_patterns(domain)))
+    return any(re.match(pattern, url) for pattern in remote_url_patterns(domain))
 
 
 class CodeHostingGitConfigKeys(NamedTuple):
@@ -95,7 +95,7 @@ class CodeHostingSpec(NamedTuple):
     git_machete_command: str
     head_branch_name: str
     organization_name: str
-    pr_description_path: List[str]
+    pr_description_path: list[str]
     pr_full_name: str
     pr_ordinal_char: str
     pr_short_name: str
@@ -118,18 +118,18 @@ class CodeHostingClient(metaclass=ABCMeta):  # pragma: no cover
         self.domain: str = domain
         self.organization: str = organization
         self.repository: str = repository
-        self.__org_repo_and_git_url_by_repo_id: Dict[int, Optional[OrganizationAndRepositoryAndGitUrl]] = {}
+        self.__org_repo_and_git_url_by_repo_id: dict[int, OrganizationAndRepositoryAndGitUrl | None] = {}
 
     @abstractmethod
     def create_pull_request(self, head: str, base: str, title: str, description: str, draft: bool) -> PullRequest:
         pass
 
     @abstractmethod
-    def add_assignees_to_pull_request(self, number: int, assignees: List[str]) -> None:
+    def add_assignees_to_pull_request(self, number: int, assignees: list[str]) -> None:
         pass
 
     @abstractmethod
-    def add_reviewers_to_pull_request(self, number: int, reviewers: List[str]) -> None:
+    def add_reviewers_to_pull_request(self, number: int, reviewers: list[str]) -> None:
         pass
 
     @abstractmethod
@@ -150,26 +150,30 @@ class CodeHostingClient(metaclass=ABCMeta):  # pragma: no cover
         Returns false if PR already had the desired draft status, and hence draft status has NOT been toggled."""
 
     @abstractmethod
-    def get_open_pull_requests_by_head(self, head: LocalBranchShortName) -> List[PullRequest]:
+    def get_open_pull_requests_by_head(self, head: LocalBranchShortName) -> list[PullRequest]:
         pass
 
     @abstractmethod
-    def get_open_pull_requests(self) -> List[PullRequest]:
+    def get_open_pull_requests_by_base(self, base: LocalBranchShortName) -> list[PullRequest]:
         pass
 
     @abstractmethod
-    def get_current_user_login(self) -> Optional[str]:
+    def get_open_pull_requests(self) -> list[PullRequest]:
         pass
 
     @abstractmethod
-    def get_pull_request_by_number_or_none(self, number: int) -> Optional[PullRequest]:
+    def get_current_user_login(self) -> str | None:
         pass
 
     @abstractmethod
-    def fetch_org_repo_and_git_url_by_repo_id_or_none(self, repo_id: int) -> Optional[OrganizationAndRepositoryAndGitUrl]:
+    def get_pull_request_by_number_or_none(self, number: int) -> PullRequest | None:
         pass
 
-    def get_org_repo_and_git_url_by_repo_id_or_none(self, repo_id: int) -> Optional[OrganizationAndRepositoryAndGitUrl]:
+    @abstractmethod
+    def fetch_org_repo_and_git_url_by_repo_id_or_none(self, repo_id: int) -> OrganizationAndRepositoryAndGitUrl | None:
+        pass
+
+    def get_org_repo_and_git_url_by_repo_id_or_none(self, repo_id: int) -> OrganizationAndRepositoryAndGitUrl | None:
         if repo_id not in self.__org_repo_and_git_url_by_repo_id:
             self.__org_repo_and_git_url_by_repo_id[repo_id] = self.fetch_org_repo_and_git_url_by_repo_id_or_none(repo_id)
         return self.__org_repo_and_git_url_by_repo_id[repo_id]

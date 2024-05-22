@@ -4,14 +4,19 @@ import os
 import re
 import shutil
 import urllib.error
+
 # Deliberately NOT using much more convenient `requests` to avoid external dependencies in production code
 import urllib.request
 from pathlib import Path
-from typing import Any, Dict, List, NamedTuple, Optional, Tuple
+from typing import Any, NamedTuple, Optional
 
-from .code_hosting import (CodeHostingClient, CodeHostingGitConfigKeys,
-                           CodeHostingSpec, OrganizationAndRepositoryAndGitUrl,
-                           PullRequest)
+from .code_hosting import (
+    CodeHostingClient,
+    CodeHostingGitConfigKeys,
+    CodeHostingSpec,
+    OrganizationAndRepositoryAndGitUrl,
+    PullRequest,
+)
 from .exceptions import MacheteException, UnexpectedMacheteException
 from .git_operations import LocalBranchShortName
 from .utils import bold, compact_dict, debug, popen_cmd, warn
@@ -81,7 +86,7 @@ class GitHubToken(NamedTuple):
         # https://github.com/cli/cli/releases/tag/v2.18.0
 
         gh_version_match = re.search(r"gh version (\d+).(\d+).(\d+) ", gh_version_stdout)
-        gh_version: Optional[Tuple[int, int, int]] = None
+        gh_version: tuple[int, int, int] | None = None
         if gh_version_match:
             gh_version = int(gh_version_match.group(1)), int(gh_version_match.group(2)), int(gh_version_match.group(3))
         else:
@@ -183,9 +188,9 @@ class GitHubClient(CodeHostingClient):
 
     def __init__(self, spec: CodeHostingSpec, domain: str, organization: str, repository: str) -> None:
         super().__init__(spec, domain, organization, repository)
-        self.__token: Optional[GitHubToken] = GitHubToken.for_domain(domain)
+        self.__token: GitHubToken | None = GitHubToken.for_domain(domain)
 
-    def __get_pull_request_from_json(self, pr_json: Dict[str, Any]) -> "PullRequest":
+    def __get_pull_request_from_json(self, pr_json: dict[str, Any]) -> "PullRequest":
         return PullRequest(
             number=int(pr_json['number']),
             display_prefix='PR #',
@@ -197,8 +202,8 @@ class GitHubClient(CodeHostingClient):
             state=pr_json['state'],
             description=pr_json['body'])
 
-    def __fire_github_api_request(self, method: str, path: str, request_body: Optional[Dict[str, Any]] = None) -> Any:
-        headers: Dict[str, str] = {
+    def __fire_github_api_request(self, method: str, path: str, request_body: dict[str, Any] | None = None) -> Any:
+        headers: dict[str, str] = {
             'Content-type': 'application/json',
             'User-Agent': 'git-machete',
             'Accept': 'application/vnd.github.v3+json'
@@ -214,7 +219,7 @@ class GitHubClient(CodeHostingClient):
             url_prefix = 'https://' + self.domain + '/api/v3'
 
         url = url_prefix + path
-        json_body: Optional[str] = json.dumps(request_body) if request_body else None
+        json_body: str | None = json.dumps(request_body) if request_body else None
         http_request = urllib.request.Request(url, headers=headers, data=json_body.encode() if json_body else None, method=method.upper())
         debug(f'firing a {method} request to {url} with {"a" if self.__token else "no"} '
               f'bearer token and request body {compact_dict(request_body) if request_body else "<none>"}')
@@ -300,7 +305,7 @@ class GitHubClient(CodeHostingClient):
         except OSError as e:  # pragma: no cover
             raise MacheteException(f'Could not connect to {url_prefix}: {e}')
 
-    def __fire_github_api_repo_request(self, method: str, path_suffix: str, request_body: Optional[Dict[str, Any]] = None) -> Any:
+    def __fire_github_api_repo_request(self, method: str, path_suffix: str, request_body: dict[str, Any] | None = None) -> Any:
         path = f'/repos/{self.organization}/{self.repository}{path_suffix}'
         return self.__fire_github_api_request(method=method, path=path, request_body=request_body)
 
@@ -311,7 +316,7 @@ class GitHubClient(CodeHostingClient):
     def __extract_failure_info_from_422(response: Any) -> str:
         if response['message'] != 'Validation Failed':
             return str(response['message'])
-        ret: List[str] = []
+        ret: list[str] = []
         if response.get('errors'):
             for error in response['errors']:
                 if error.get('message'):
@@ -324,7 +329,7 @@ class GitHubClient(CodeHostingClient):
             return str(response)
 
     def create_pull_request(self, head: str, base: str, title: str, description: str, draft: bool) -> PullRequest:
-        request_body: Dict[str, Any] = {
+        request_body: dict[str, Any] = {
             'head': head,
             'base': base,
             'title': title,
@@ -334,29 +339,29 @@ class GitHubClient(CodeHostingClient):
         pr = self.__fire_github_api_repo_request(method='POST', path_suffix='/pulls', request_body=request_body)
         return self.__get_pull_request_from_json(pr)
 
-    def add_assignees_to_pull_request(self, number: int, assignees: List[str]) -> None:
-        request_body: Dict[str, List[str]] = {
+    def add_assignees_to_pull_request(self, number: int, assignees: list[str]) -> None:
+        request_body: dict[str, list[str]] = {
             'assignees': assignees
         }
         # Adding assignees is only available via the Issues API, not PRs API.
         self.__fire_github_api_repo_request(method='POST', path_suffix=f'/issues/{number}/assignees', request_body=request_body)
 
-    def add_reviewers_to_pull_request(self, number: int, reviewers: List[str]) -> None:
-        request_body: Dict[str, List[str]] = {
+    def add_reviewers_to_pull_request(self, number: int, reviewers: list[str]) -> None:
+        request_body: dict[str, list[str]] = {
             'reviewers': reviewers
         }
         self.__fire_github_api_repo_request(method='POST', path_suffix=f'/pulls/{number}/requested_reviewers', request_body=request_body)
 
     def set_base_of_pull_request(self, number: int, base: LocalBranchShortName) -> None:
-        request_body: Dict[str, str] = {'base': base}
+        request_body: dict[str, str] = {'base': base}
         self.__fire_github_api_repo_request(method='PATCH', path_suffix=f'/pulls/{number}', request_body=request_body)
 
     def set_description_of_pull_request(self, number: int, description: str) -> None:
-        request_body: Dict[str, str] = {'body': description}
+        request_body: dict[str, str] = {'body': description}
         self.__fire_github_api_repo_request(method='PATCH', path_suffix=f'/pulls/{number}', request_body=request_body)
 
     def set_milestone_of_pull_request(self, number: int, milestone: str) -> None:
-        request_body: Dict[str, str] = {'milestone': milestone}
+        request_body: dict[str, str] = {'milestone': milestone}
         # Setting milestone is only available via the Issues API, not PRs API.
         self.__fire_github_api_repo_request(method='PATCH', path_suffix=f'/issues/{number}', request_body=request_body)
 
@@ -406,28 +411,32 @@ class GitHubClient(CodeHostingClient):
         debug(f"mutation response is {response}")
         return True
 
-    def get_open_pull_requests_by_head(self, head: LocalBranchShortName) -> List[PullRequest]:
+    def get_open_pull_requests_by_head(self, head: LocalBranchShortName) -> list[PullRequest]:
         prs = self.__fire_github_api_repo_request(method='GET', path_suffix=f'/pulls?head={self.organization}:{head}')
         return [self.__get_pull_request_from_json(pr) for pr in prs]
 
-    def get_open_pull_requests(self) -> List[PullRequest]:
+    def get_open_pull_requests_by_base(self, base: LocalBranchShortName) -> list[PullRequest]:
+        prs = self.__fire_github_api_repo_request(method='GET', path_suffix=f'/pulls?base={base}')
+        return [self.__get_pull_request_from_json(pr) for pr in prs]
+
+    def get_open_pull_requests(self) -> list[PullRequest]:
         prs = self.__fire_github_api_repo_request(method='GET', path_suffix=f'/pulls?per_page={self.MAX_PULLS_PER_PAGE_COUNT}')
         return [self.__get_pull_request_from_json(pr) for pr in prs]
 
-    def get_current_user_login(self) -> Optional[str]:
+    def get_current_user_login(self) -> str | None:
         if not self.__token:
             return None
         user = self.__fire_github_api_request(method='GET', path='/user')
         return str(user['login'])  # str() to satisfy mypy
 
-    def get_pull_request_by_number_or_none(self, number: int) -> Optional[PullRequest]:
+    def get_pull_request_by_number_or_none(self, number: int) -> PullRequest | None:
         try:
-            pr_json: Dict[str, Any] = self.__fire_github_api_repo_request(method='GET', path_suffix=f'/pulls/{number}')
+            pr_json: dict[str, Any] = self.__fire_github_api_repo_request(method='GET', path_suffix=f'/pulls/{number}')
             return self.__get_pull_request_from_json(pr_json)
         except MacheteException:
             return None
 
-    def fetch_org_repo_and_git_url_by_repo_id_or_none(self, repo_id: int) -> Optional[OrganizationAndRepositoryAndGitUrl]:
+    def fetch_org_repo_and_git_url_by_repo_id_or_none(self, repo_id: int) -> OrganizationAndRepositoryAndGitUrl | None:
         try:
             repo = self.__fire_github_api_request(method='GET', path=f'/repositories/{repo_id}')
             return OrganizationAndRepositoryAndGitUrl(
