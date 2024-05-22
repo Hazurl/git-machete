@@ -165,7 +165,7 @@ class GitHubClient(CodeHostingClient):
             head_branch_name='head',
             organization_name='organization',
             # https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/creating-a-pull-request-template-for-your-repository
-            pr_description_path=['.github', 'pull_request_template.md'],
+            pr_description_path=['.github', 'PULL_REQUEST_TEMPLATE.md'],
             pr_ordinal_char='#',
             pr_full_name='pull request',
             pr_short_name='PR',
