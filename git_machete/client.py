@@ -386,6 +386,7 @@ class MacheteClient:
                                                 "Merging with the inferred upstream <b>%s</b>..."))
             self.__git.merge(with_branch, current_branch, opt_no_edit_merge)
         else:
+            print(f"Rebasing {bold(current_branch)}...")
             onto_branch = self.up(
                 current_branch,
                 prompt_if_inferred_msg=("Branch <b>%s</b> not found in the tree of branch dependencies. "
@@ -398,6 +399,11 @@ class MacheteClient:
                 LocalBranchShortName.of(onto_branch).full_name(),
                 rebase_fork_point,
                 current_branch, opt_no_interactive_rebase)
+            
+            for child in self.__down_branches.get(current_branch, []):
+                self.__git.checkout(child)
+                self.update(opt_merge=opt_merge, opt_no_edit_merge=opt_no_edit_merge, opt_no_interactive_rebase=opt_no_interactive_rebase, opt_fork_point=opt_fork_point)
+            self.__git.checkout(current_branch)
 
     def discover_tree(
             self,
