@@ -517,7 +517,8 @@ class MacheteClient:
             warn_when_branch_in_sync_but_fork_point_off=False,
             opt_list_commits=opt_list_commits,
             opt_list_commits_with_hashes=False,
-            opt_no_detect_squash_merges=False)
+            opt_no_detect_squash_merges=False,
+            opt_stack_only=False)
         print("")
         do_backup = os.path.isfile(self.__branch_layout_file_path) and open(self.__branch_layout_file_path).read().strip()
         backup_msg = (
@@ -813,7 +814,8 @@ class MacheteClient:
                     warn_when_branch_in_sync_but_fork_point_off=True,
                     opt_list_commits=opt_list_commits,
                     opt_list_commits_with_hashes=False,
-                    opt_no_detect_squash_merges=opt_no_detect_squash_merges)
+                    opt_no_detect_squash_merges=opt_no_detect_squash_merges,
+                    opt_stack_only=False)
                 self.__print_new_line(True)
             if needs_slide_out:
                 any_action_suggested = True
@@ -972,7 +974,8 @@ class MacheteClient:
             warn_when_branch_in_sync_but_fork_point_off=True,
             opt_list_commits=opt_list_commits,
             opt_list_commits_with_hashes=False,
-            opt_no_detect_squash_merges=opt_no_detect_squash_merges)
+            opt_no_detect_squash_merges=opt_no_detect_squash_merges,
+            opt_stack_only=False)
         print("")
         if current_branch == self.managed_branches[-1]:
             msg: str = f"Reached branch {bold(current_branch)} which has no successor"
@@ -997,13 +1000,39 @@ class MacheteClient:
             warn_when_branch_in_sync_but_fork_point_off: bool,
             opt_list_commits: bool,
             opt_list_commits_with_hashes: bool,
-            opt_no_detect_squash_merges: bool
+            opt_no_detect_squash_merges: bool,
+            opt_stack_only: bool
     ) -> None:
+        
+        currently_rebased_branch = self.__git.get_currently_rebased_branch_or_none()
+        currently_checked_out_branch = self.__git.get_currently_checked_out_branch_or_none()
+
+        if not currently_checked_out_branch:
+            raise MacheteException("No branch is currently checked out")
+
+        branch_in_stack = set()
+        # Add all parents
+        parent_branch = self.__up_branch.get(currently_checked_out_branch)
+        while parent_branch:
+            branch_in_stack.add(parent_branch)
+            parent_branch = self.__up_branch.get(parent_branch)
+
+        # Add all children
+        branch_to_visit = [currently_checked_out_branch]
+        while branch_to_visit:
+            branch = branch_to_visit.pop()
+            branch_in_stack.add(branch)
+            branch_to_visit.extend(self.__down_branches.get(branch, []))
+
         next_sibling_of_ancestor_by_branch: OrderedDict[LocalBranchShortName, list[LocalBranchShortName | None]] = OrderedDict()
 
         def prefix_dfs(parent: LocalBranchShortName, accumulated_path_: list[LocalBranchShortName | None]) -> None:
             next_sibling_of_ancestor_by_branch[parent] = accumulated_path_
-            children = self.__down_branches.get(parent)
+            children = self.__down_branches.get(parent, [])
+            if opt_stack_only:
+                children = [
+                    child for child in children if child in branch_in_stack
+                ]
             if children:
                 shifted_children: list[LocalBranchShortName | None] = children[1:]  # type: ignore[assignment]
                 for (v, nv) in zip(children, shifted_children + [None]):
@@ -1046,9 +1075,6 @@ class MacheteClient:
                 sync_to_parent_status[branch] = SyncToParentStatus.InSync
             else:
                 sync_to_parent_status[branch] = SyncToParentStatus.InSyncButForkPointOff
-
-        currently_rebased_branch = self.__git.get_currently_rebased_branch_or_none()
-        currently_checked_out_branch = self.__git.get_currently_checked_out_branch_or_none()
 
         hook_path = self.__git.get_hook_path("machete-status-branch")
         hook_executable = self.__git.check_hook_executable(hook_path)
@@ -1157,6 +1183,9 @@ class MacheteClient:
                 SyncToRemoteStatuses.DIVERGED_FROM_AND_NEWER_THAN_REMOTE:
                     colored(f" (diverged from {bold(remote)})", AnsiEscapeCodes.RED)  # type: ignore [arg-type]
             }[SyncToRemoteStatuses(s)]
+
+            if branch in branch_in_stack and not opt_stack_only:
+                sync_status += colored(" (in stack)", AnsiEscapeCodes.GREEN)
 
             hook_output = ""
             if hook_executable:
@@ -2369,7 +2398,8 @@ class MacheteClient:
                     warn_when_branch_in_sync_but_fork_point_off=True,
                     opt_list_commits=False,
                     opt_list_commits_with_hashes=False,
-                    opt_no_detect_squash_merges=False)
+                    opt_no_detect_squash_merges=False,
+                    opt_stack_only=True)
                 self.__print_new_line(False)
 
                 if converted_to_draft:
@@ -2909,7 +2939,8 @@ class MacheteClient:
                     warn_when_branch_in_sync_but_fork_point_off=True,
                     opt_list_commits=False,
                     opt_list_commits_with_hashes=False,
-                    opt_no_detect_squash_merges=False)
+                    opt_no_detect_squash_merges=False,
+                    opt_stack_only=True)
                 self.__print_new_line(False)
 
         else:

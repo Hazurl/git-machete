@@ -1,5 +1,3 @@
-from typing import List, Optional
-
 from .exceptions import MacheteException
 from .git_operations import AnyBranchName, AnyRevision, LocalBranchShortName
 
@@ -9,13 +7,13 @@ class CommandLineOptions:
     def __init__(self) -> None:
         self.opt_as_first_child: bool = False
         self.opt_as_root: bool = False
-        self.opt_branch: Optional[AnyBranchName] = None
-        self.opt_checked_out_since: Optional[str] = None
+        self.opt_branch: AnyBranchName | None = None
+        self.opt_checked_out_since: str | None = None
         self.opt_delete: bool = False
-        self.opt_down_fork_point: Optional[AnyRevision] = None
+        self.opt_down_fork_point: AnyRevision | None = None
         self.opt_draft: bool = False
         self.opt_fetch: bool = False
-        self.opt_fork_point: Optional[AnyRevision] = None
+        self.opt_fork_point: AnyRevision | None = None
         self.opt_inferred: bool = False
         self.opt_list_commits: bool = False
         self.opt_list_commits_with_hashes: bool = False
@@ -24,23 +22,24 @@ class CommandLineOptions:
         self.opt_no_detect_squash_merges: bool = False
         self.opt_no_edit_merge: bool = False
         self.opt_no_interactive_rebase: bool = False
-        self.opt_onto: Optional[LocalBranchShortName] = None
-        self.opt_override_to: Optional[str] = None
+        self.opt_onto: LocalBranchShortName | None = None
+        self.opt_override_to: str | None = None
         self.opt_override_to_inferred: bool = False
         self.opt_override_to_parent: bool = False
         self.opt_push_tracked: bool = True
         self.opt_push_untracked: bool = True
         self.opt_removed_from_remote: bool = False
         self.opt_return_to: str = "stay"
-        self.opt_roots: List[LocalBranchShortName] = list()
+        self.opt_roots: list[LocalBranchShortName] = list()
         self.opt_start_from: str = "here"
         self.opt_stat: bool = False
         self.opt_sync_github_prs: bool = False
         self.opt_sync_gitlab_mrs: bool = False
-        self.opt_title: Optional[str] = None
+        self.opt_title: str | None = None
         self.opt_unset_override: bool = False
         self.opt_with_urls: bool = False
         self.opt_yes: bool = False
+        self.opt_stack_only: bool = False
 
     def validate(self) -> None:
         if self.opt_as_root and self.opt_onto:

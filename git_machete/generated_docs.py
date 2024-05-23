@@ -1,10 +1,8 @@
-from typing import Dict
-
 # ---------------------------------------------------------------------------------------------------------
 # Warning: This file is NOT supposed to be edited directly, but instead regenerated via `tox -e py-docs`
 # ---------------------------------------------------------------------------------------------------------
 
-short_docs: Dict[str, str] = {
+short_docs: dict[str, str] = {
     "add": "Add a branch to the tree of branch dependencies",
     "advance": "Fast-forward merge one of children to the current branch, push it and then slide out the child",
     "anno": "Manage custom annotations",
@@ -36,7 +34,7 @@ short_docs: Dict[str, str] = {
     "version": "Display the version and exit",
 }
 
-long_docs: Dict[str, str] = {
+long_docs: dict[str, str] = {
     "add": """
         <b>Usage:</b><b>
            git machete add [-o|--onto=<target-upstream-branch>] [-R|--as-root] [-y|--yes] [<branch>]</b>
@@ -1155,7 +1153,7 @@ long_docs: Dict[str, str] = {
    """,
     "status": """
         <b>Usage:</b><b>
-           git machete s[tatus] [--color=WHEN] [-l|--list-commits] [-L|--list-commits-with-hashes] [--no-detect-squash-merges]</b>
+           git machete s[tatus] [--color=WHEN] [-s|--stack-only] [-l|--list-commits] [-L|--list-commits-with-hashes] [--no-detect-squash-merges]</b>
 
         Displays a tree-shaped status of the branches listed in the branch layout file.
 
@@ -1224,6 +1222,8 @@ long_docs: Dict[str, str] = {
         <b>Options:</b>
            <b>--color=WHEN</b>
               Colorize the output; WHEN can be `always`, `auto` (default: colorize only if stdout is a terminal), or `never`.
+           <b>-s</b>, <b>--stack-only</b>
+              Only display branches that belongs to the current stack.
            <b>-l</b>, <b>--list-commits</b>
               Additionally list the commits introduced on each branch.
            <b>-L</b>, <b>--list-commits-with-hashes</b>

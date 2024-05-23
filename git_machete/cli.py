@@ -6,7 +6,8 @@ import pkgutil
 import re
 import sys
 import textwrap
-from typing import Any, Dict, List, Optional, Sequence, Tuple, TypeVar, Union
+from collections.abc import Sequence
+from typing import Any, TypeVar
 
 import git_machete.options
 from git_machete import __version__, git_config_keys, utils
@@ -14,16 +15,26 @@ from git_machete.github import GitHubClient
 from git_machete.gitlab import GitLabClient
 
 from .client import MacheteClient
-from .exceptions import (ExitCode, InteractionStopped, MacheteException,
-                         UnderlyingGitException, UnexpectedMacheteException)
+from .exceptions import (
+    ExitCode,
+    InteractionStopped,
+    MacheteException,
+    UnderlyingGitException,
+    UnexpectedMacheteException,
+)
 from .generated_docs import long_docs, short_docs
-from .git_operations import (AnyBranchName, AnyRevision, GitContext,
-                             LocalBranchShortName, RemoteBranchShortName)
+from .git_operations import (
+    AnyBranchName,
+    AnyRevision,
+    GitContext,
+    LocalBranchShortName,
+    RemoteBranchShortName,
+)
 from .utils import bold, excluding, fmt, underline, warn
 
 T = TypeVar('T')
 
-alias_by_command: Dict[str, str] = {
+alias_by_command: dict[str, str] = {
     "diff": "d",
     "edit": "e",
     "go": "g",
@@ -32,9 +43,9 @@ alias_by_command: Dict[str, str] = {
     "traverse": "t"
 }
 
-command_by_alias: Dict[str, str] = {v: k for k, v in alias_by_command.items()}
+command_by_alias: dict[str, str] = {v: k for k, v in alias_by_command.items()}
 
-command_groups: List[Tuple[str, List[str]]] = [
+command_groups: list[tuple[str, list[str]]] = [
     ("General topics",
      ["completion", "config", "file", "format", "help", "hooks", "version"]),
     ("Build, display and modify the tree of branch dependencies",
@@ -52,7 +63,7 @@ command_groups: List[Tuple[str, List[str]]] = [
 commands_and_aliases = list(long_docs.keys()) + list(command_by_alias.keys())
 
 
-def get_help_description(display_help_topics: bool, command: Optional[str] = None) -> str:
+def get_help_description(display_help_topics: bool, command: str | None = None) -> str:
     usage_str = ''
     if command in long_docs:
         usage_str += fmt(textwrap.dedent(long_docs[command]))
@@ -98,9 +109,9 @@ class MacheteHelpAction(argparse.Action):
             option_strings: str,
             dest: str = argparse.SUPPRESS,
             default: Any = argparse.SUPPRESS,
-            help: Optional[str] = None
+            help: str | None = None
     ) -> None:
-        super(MacheteHelpAction, self).__init__(
+        super().__init__(
             option_strings=option_strings,
             dest=dest,
             default=default,
@@ -111,8 +122,8 @@ class MacheteHelpAction(argparse.Action):
             self,
             parser: argparse.ArgumentParser,
             namespace: argparse.Namespace,  # noqa: F841, U100
-            values: Union[str, Sequence[Any], None],  # noqa: U100
-            option_string: Optional[str] = None  # noqa: F841, U100
+            values: str | Sequence[Any] | None,  # noqa: U100
+            option_string: str | None = None  # noqa: F841, U100
     ) -> None:
         # parser name (prog) is expected to be `git machete` or `git machete <command>`
         command_name = parser.prog.replace('git machete', '').strip()
@@ -361,6 +372,7 @@ def create_cli_parser() -> argparse.ArgumentParser:
         add_help=False,
         parents=[common_args_parser])
     status_parser.add_argument('--color', choices=['always', 'auto', 'never'], default='auto')
+    status_parser.add_argument('-s', '--stack-only', action='store_true')
     status_parser.add_argument('-l', '--list-commits', action='store_true')
     status_parser.add_argument('-L', '--list-commits-with-hashes', action='store_true')
     status_parser.add_argument('--no-detect-squash-merges', action='store_true')
@@ -448,6 +460,8 @@ def update_cli_options_using_parsed_args(
             cli_opts.opt_inferred = True
         elif opt == "list_commits":
             cli_opts.opt_list_commits = True
+        elif opt == "stack_only":
+            cli_opts.opt_stack_only = True
         elif opt == "list_commits_with_hashes":
             cli_opts.opt_list_commits = cli_opts.opt_list_commits_with_hashes = True
         elif opt == "merge":
@@ -538,7 +552,7 @@ def set_utils_global_variables(parsed_args: argparse.Namespace) -> None:
 
 
 def get_local_branch_short_name_from_arg_or_current_branch(
-        branch_from_arg: Optional[AnyBranchName], git_context: GitContext) -> LocalBranchShortName:
+        branch_from_arg: AnyBranchName | None, git_context: GitContext) -> LocalBranchShortName:
     return get_local_branch_short_name_from_arg(branch_from_arg) if branch_from_arg else git_context.get_current_branch()
 
 
@@ -546,8 +560,8 @@ def get_local_branch_short_name_from_arg(branch_from_arg: AnyBranchName) -> Loca
     return LocalBranchShortName.of(branch_from_arg.replace('refs/heads/', ''))
 
 
-def launch(orig_args: List[str]) -> None:
-    initial_current_directory: Optional[str] = utils.get_current_directory_or_none()
+def launch(orig_args: list[str]) -> None:
+    initial_current_directory: str | None = utils.get_current_directory_or_none()
 
     try:
         cli_opts = git_machete.options.CommandLineOptions()
@@ -555,7 +569,7 @@ def launch(orig_args: List[str]) -> None:
 
         cli_parser: argparse.ArgumentParser = create_cli_parser()
         parsed_cli: argparse.Namespace = cli_parser.parse_args(orig_args)
-        parsed_cli_as_dict: Dict[str, Any] = vars(parsed_cli)
+        parsed_cli_as_dict: dict[str, Any] = vars(parsed_cli)
 
         # Let's set up options like debug/verbose before we first start reading `git config`.
         set_utils_global_variables(parsed_cli)
@@ -780,7 +794,7 @@ def launch(orig_args: List[str]) -> None:
                 remote_counterparts_of_local_branches = utils.map_truthy_only(
                     git.get_combined_counterpart_for_fetching_of_branch,
                     git.get_local_branches())
-                qualifying_remote_branches: List[RemoteBranchShortName] = \
+                qualifying_remote_branches: list[RemoteBranchShortName] = \
                     excluding(git.get_remote_branches(), remote_counterparts_of_local_branches)
                 res = excluding(git.get_local_branches(), machete_client.managed_branches) + list(
                     map(strip_remote_name, qualifying_remote_branches))
@@ -830,7 +844,7 @@ def launch(orig_args: List[str]) -> None:
         elif cmd == "slide-out":
             machete_client.read_branch_layout_file(perform_interactive_slide_out=should_perform_interactive_slide_out)
             git.expect_no_operation_in_progress()
-            branches_to_slide_out: Optional[List[str]] = parsed_cli_as_dict.get('branches')
+            branches_to_slide_out: list[str] | None = parsed_cli_as_dict.get('branches')
             if cli_opts.opt_removed_from_remote:
                 if branches_to_slide_out or cli_opts.opt_down_fork_point or cli_opts.opt_merge or cli_opts.opt_no_interactive_rebase:
                     raise MacheteException("Only `--delete` can be passed with `--removed-from-remote`")
@@ -867,7 +881,8 @@ def launch(orig_args: List[str]) -> None:
                 warn_when_branch_in_sync_but_fork_point_off=True,
                 opt_list_commits=cli_opts.opt_list_commits,
                 opt_list_commits_with_hashes=cli_opts.opt_list_commits_with_hashes,
-                opt_no_detect_squash_merges=cli_opts.opt_no_detect_squash_merges)
+                opt_no_detect_squash_merges=cli_opts.opt_no_detect_squash_merges,
+                opt_stack_only=cli_opts.opt_stack_only)
         elif cmd in {"traverse", alias_by_command["traverse"]}:
             if cli_opts.opt_start_from not in {"here", "root", "first-root"}:
                 raise MacheteException(
