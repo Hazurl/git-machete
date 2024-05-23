@@ -1069,8 +1069,8 @@ class MacheteClient:
         next_sibling_of_ancestor: list[LocalBranchShortName | None]
         for branch, next_sibling_of_ancestor in next_sibling_of_ancestor_by_branch.items():
             if branch in self.__up_branch:
-                print_line_prefix(branch, f"{utils.get_vertical_bar()}\n")
                 if opt_list_commits:
+                    print_line_prefix(branch, f"{utils.get_vertical_bar()}\n")
                     fork_point = fork_point_hash(branch)
                     if not fork_point:
                         # Rare case, but can happen e.g. due to reflog expiry.
