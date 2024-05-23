@@ -5,14 +5,18 @@ import re
 import subprocess
 import sys
 import time
-from typing import (Any, Callable, Dict, Iterable, List, NamedTuple, Optional,
-                    Set, Tuple, TypeVar)
+from collections.abc import Callable, Iterable
+from typing import (
+    Any,
+    NamedTuple,
+    TypeVar,
+)
 
 T = TypeVar('T')
 U = TypeVar('U')
 
 # To avoid displaying the same warning multiple times during a single run.
-displayed_warnings: Set[str] = set()
+displayed_warnings: set[str] = set()
 
 # Let's keep the flag to avoid checking for current directory's existence
 # every time any command is being popened or run.
@@ -29,23 +33,23 @@ CODE_HOSTING_TOKEN_PREFIXES = ['ghp_', 'gho_', 'ghu_', 'ghs_', 'ghr_', 'glpat-']
 CODE_HOSTING_TOKEN_PREFIX_REGEX = '(' + '|'.join(CODE_HOSTING_TOKEN_PREFIXES) + ')'
 
 
-def excluding(iterable: Iterable[T], s: Iterable[T]) -> List[T]:
+def excluding(iterable: Iterable[T], s: Iterable[T]) -> list[T]:
     return list(filter(lambda x: x not in s, iterable))
 
 
-def flat_map(func: Callable[[T], List[T]], iterable: Iterable[T]) -> List[T]:
+def flat_map(func: Callable[[T], list[T]], iterable: Iterable[T]) -> list[T]:
     return sum(map(func, iterable), [])
 
 
-def find_or_none(func: Callable[[T], bool], iterable: Iterable[T]) -> Optional[T]:
+def find_or_none(func: Callable[[T], bool], iterable: Iterable[T]) -> T | None:
     return next(filter(func, iterable), None)  # type: ignore [arg-type]
 
 
-def map_truthy_only(func: Callable[[T], Optional[U]], iterable: Iterable[T]) -> List[U]:
+def map_truthy_only(func: Callable[[T], U | None], iterable: Iterable[T]) -> list[U]:
     return list(filter(None, map(func, iterable)))
 
 
-def get_non_empty_lines(s: str) -> List[str]:
+def get_non_empty_lines(s: str) -> list[str]:
     return list(filter(None, s.splitlines()))
 
 
@@ -55,7 +59,7 @@ def tupled(f: Callable[..., T]) -> Callable[[Any], T]:
     return lambda tple: f(*tple)
 
 
-def get_second(pair: Tuple[Any, T]) -> T:
+def get_second(pair: tuple[Any, T]) -> T:
     _, b = pair
     return b
 
@@ -69,7 +73,7 @@ def does_directory_exist(path: str) -> bool:
         return False
 
 
-def get_current_directory_or_none() -> Optional[str]:
+def get_current_directory_or_none() -> str | None:
     try:
         return os.getcwd()
     except OSError:
@@ -81,7 +85,7 @@ def is_executable(path: str) -> bool:
     return os.access(path, os.X_OK)
 
 
-def find_executable(executable: str) -> Optional[str]:
+def find_executable(executable: str) -> str | None:
     base, ext = os.path.splitext(executable)
 
     if (sys.platform == 'win32' or os.name == 'os2') and (ext != '.exe'):
@@ -100,7 +104,7 @@ def find_executable(executable: str) -> Optional[str]:
     return None
 
 
-def compact_dict(d: Dict[str, Any]) -> Dict[str, str]:
+def compact_dict(d: dict[str, Any]) -> dict[str, str]:
     return {k: re.sub('\n +', ' ', str(v)) for k, v in d.items()}
 
 
@@ -123,12 +127,12 @@ def debug(msg: str) -> None:
         print(f"{function_name}{args_and_values_bold_str}: {dim(msg)}", file=sys.stderr)
 
 
-def _run_cmd(cmd: str, *args: str, cwd: Optional[str] = None, env: Optional[Dict[str, str]] = None) -> int:
+def _run_cmd(cmd: str, *args: str, cwd: str | None = None, env: dict[str, str] | None = None) -> int:
     # capture_output argument is only supported since Python 3.7
     return subprocess.run([cmd] + list(args), stdout=None, stderr=None, cwd=cwd, env=env).returncode
 
 
-def run_cmd(cmd: str, *args: str, cwd: Optional[str] = None, env: Optional[Dict[str, str]] = None) -> int:
+def run_cmd(cmd: str, *args: str, cwd: str | None = None, env: dict[str, str] | None = None) -> int:
     chdir_upwards_until_current_directory_exists()
 
     flat_cmd: str = get_cmd_shell_repr(cmd, *args, env=env)
@@ -169,7 +173,7 @@ def mark_current_directory_as_possibly_non_existent() -> None:
 def chdir_upwards_until_current_directory_exists() -> None:
     global current_directory_confirmed_to_exist
     if not current_directory_confirmed_to_exist:
-        current_directory: Optional[str] = get_current_directory_or_none()
+        current_directory: str | None = get_current_directory_or_none()
         if not current_directory:
             while not current_directory:
                 # Note: 'os.chdir' only affects the current process and its subprocesses;
@@ -187,7 +191,7 @@ class PopenResult(NamedTuple):
 
 
 def _popen_cmd(cmd: str, *args: str,
-               cwd: Optional[str] = None, env: Optional[Dict[str, str]] = None) -> PopenResult:
+               cwd: str | None = None, env: dict[str, str] | None = None) -> PopenResult:
     # capture_output argument is only supported since Python 3.7
     process = subprocess.Popen([cmd] + list(args), stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd, env=env)
     stdout_bytes, stderr_bytes = process.communicate()
@@ -197,8 +201,8 @@ def _popen_cmd(cmd: str, *args: str,
     return PopenResult(exit_code, stdout, stderr)
 
 
-def popen_cmd(cmd: str, *args: str, cwd: Optional[str] = None,
-              env: Optional[Dict[str, str]] = None, hide_debug_output: bool = False) -> PopenResult:
+def popen_cmd(cmd: str, *args: str, cwd: str | None = None,
+              env: dict[str, str] | None = None, hide_debug_output: bool = False) -> PopenResult:
     chdir_upwards_until_current_directory_exists()
 
     flat_cmd = get_cmd_shell_repr(cmd, *args, env=env)
@@ -245,7 +249,7 @@ def popen_cmd(cmd: str, *args: str, cwd: Optional[str] = None,
     return result
 
 
-def get_cmd_shell_repr(cmd: str, *args: str, env: Optional[Dict[str, str]]) -> str:
+def get_cmd_shell_repr(cmd: str, *args: str, env: dict[str, str] | None) -> str:
     def shell_escape(arg: str) -> str:
         return arg.replace("(", "\\(") \
             .replace(")", "\\)") \
@@ -266,7 +270,7 @@ def warn(msg: str, apply_fmt: bool = True, end: str = '\n') -> None:
 
 
 def slurp_file(path: str) -> str:
-    with open(path, 'r') as file:
+    with open(path) as file:
         return file.read()
 
 
@@ -330,7 +334,7 @@ def colored(s: str, color: str) -> str:
     return s if ascii_only or not s else color + s + AnsiEscapeCodes.ENDC
 
 
-fmt_transformations: List[Callable[[str], str]] = [
+fmt_transformations: list[Callable[[str], str]] = [
     lambda x: re.sub('`(.*?)`', underline(r"\1"), x),
     lambda x: re.sub('<b>(.*?)</b>', bold(r"\1"), x, flags=re.DOTALL),
     lambda x: re.sub('<u>(.*?)</u>', underline(r"\1"), x, flags=re.DOTALL),
@@ -375,6 +379,9 @@ def get_pretty_choices(*choices: str) -> str:
 
 def get_current_date() -> str:
     return datetime.datetime.now().strftime("%Y-%m-%d")
+
+def get_current_date_and_time() -> str:
+    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 class CommandResult(NamedTuple):

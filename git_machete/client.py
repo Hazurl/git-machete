@@ -2395,17 +2395,17 @@ class MacheteClient:
             return list(itertools.dropwhile(lambda line: line.strip() == '', strs))
 
         lines = skip_leading_empty(old_description.splitlines()) if old_description else []
-        text_to_prepend = self.__generate_text_to_prepend_to_pr_description(code_hosting_client, pr)
-        lines_to_prepend = text_to_prepend.splitlines() if text_to_prepend else []
+        text_to_append = self.__generate_text_to_append_to_pr_description(code_hosting_client, pr)
+        lines_to_append = text_to_append.splitlines() if text_to_append else []
         if self.START_GIT_MACHETE_GENERATED_COMMENT in lines and self.END_GIT_MACHETE_GENERATED_COMMENT in lines:
             start_index = lines.index(self.START_GIT_MACHETE_GENERATED_COMMENT)
             end_index = lines.index(self.END_GIT_MACHETE_GENERATED_COMMENT)
-            lines = lines[:start_index] + lines_to_prepend + lines[end_index + 1:]
+            lines = lines[:start_index] + lines_to_append + lines[end_index + 1:]
         else:
             # For compatibility with pre-v3.23.0 format; only affects GitHub
             if lines and '# Based on PR #' in lines[0]:
                 lines = skip_leading_empty(lines[1:])
-            lines = lines_to_prepend + lines
+            lines = lines + lines_to_append
         return '\n'.join(lines)
 
     def retarget_pr(self, spec: CodeHostingSpec, head: LocalBranchShortName, ignore_if_missing: bool) -> None:
@@ -2551,7 +2551,7 @@ class MacheteClient:
     START_GIT_MACHETE_GENERATED_COMMENT = '<!-- start git-machete generated -->'
     END_GIT_MACHETE_GENERATED_COMMENT = '<!-- end git-machete generated -->'
 
-    def __generate_text_to_prepend_to_pr_description(self, code_hosting_client: CodeHostingClient, pr: PullRequest) -> str:
+    def __generate_text_to_append_to_pr_description(self, code_hosting_client: CodeHostingClient, pr: PullRequest) -> str:
 
         prs_for_base_branch = code_hosting_client.get_open_pull_requests_by_head(LocalBranchShortName(pr.base))
         prs_for_head_branch = code_hosting_client.get_open_pull_requests_by_base(LocalBranchShortName(pr.head))
@@ -2570,15 +2570,19 @@ class MacheteClient:
         print(fmt('<green><b>OK</b></green>'))
         pr_path = self.__get_full_path_from_pr_chain(config, pr, all_open_prs)
 
-        prepend = f'{self.START_GIT_MACHETE_GENERATED_COMMENT}\n\n'
-        current_date = utils.get_current_date()
-        prepend += f'## Full chain of {pr_short_name}s as of {current_date}\n\n'
-        for ancestor_pr in pr_path:
+        append = f'{self.START_GIT_MACHETE_GENERATED_COMMENT}\n\n'
+
+        # Add trunk branch
+        append += f'* `{pr_path[-1].base}`\n'
+
+        for ancestor_pr in pr_path[::-1]:
             here_suffix = ":point_left:" if ancestor_pr == pr else ""
-            prepend += f'* {ancestor_pr.display_text(fmt=False)} (`{ancestor_pr.head}`) {here_suffix}\n'
-        prepend += '\n'
-        prepend += f'{self.END_GIT_MACHETE_GENERATED_COMMENT}\n'
-        return prepend
+            append += f'* {ancestor_pr.short_display_text(fmt=False)} {here_suffix}\n'
+        current_date_and_time = utils.get_current_date_and_time()
+        append += f'<p align="right"><sub>:hourglass_flowing_sand: Stack updated on {current_date_and_time}</sub></p>\n'
+        append += '\n'
+        append += f'{self.END_GIT_MACHETE_GENERATED_COMMENT}\n'
+        return append
 
     def create_pull_request(
             self,
@@ -2666,11 +2670,11 @@ class MacheteClient:
         if base_branch_found_on_remote:
             # As the description may include the reference to this PR itself (in case of a chain of >=2 PRs),
             # let's update the PR description after it's already created (so that we know the current PR's number).
-            text_to_prepend = self.__generate_text_to_prepend_to_pr_description(code_hosting_client, pr)
-            if text_to_prepend:
+            text_to_append = self.__generate_text_to_append_to_pr_description(code_hosting_client, pr)
+            if text_to_append:
                 if description:
-                    text_to_prepend += '\n'
-                description = text_to_prepend + description
+                    description += '\n'
+                description = description + text_to_append
                 print(f'Updating description of {pr.display_text()} to include '
                       f'the chain of {spec.pr_short_name}s... ', end='', flush=True)
                 code_hosting_client.set_description_of_pull_request(pr.number, description)
