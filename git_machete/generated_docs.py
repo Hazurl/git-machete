@@ -31,6 +31,7 @@ short_docs: dict[str, str] = {
     "status": "Display formatted tree of branch dependencies, including info on their sync with upstream branch and with remote",
     "traverse": "Walk through the tree of branch dependencies and rebase, merge, slide out, push and/or pull each branch one by one. By default starts from current branch",
     "update": "Sync the current branch with its upstream (parent) branch via rebase or merge",
+    "post-commit": "Rebase the child branches of the current branch onto the current branch after a commit",
     "version": "Display the version and exit",
 }
 
@@ -326,7 +327,7 @@ long_docs: dict[str, str] = {
 
            `GIT_MACHETE_REBASE_OPTS`
               Used to pass extra options to the underlying `git rebase` invocation (called by the executed command,
-              such as: `reapply`, `slide-out`, `traverse`, `update`).
+              such as: `reapply`, `slide-out`, `traverse`, `update`, `post-commit`).
               Example: `GIT_MACHETE_REBASE_OPTS="--keep-empty --rebase-merges" git machete update`.
 
            `GITHUB_TOKEN`
@@ -932,7 +933,7 @@ long_docs: dict[str, str] = {
 
            `machete-pre-rebase <new-base> <fork-point-hash> <branch-being-rebased>`
  
-              The hook that is executed before rebase is run during `reapply`, `slide-out`, `traverse` and `update`.
+              The hook that is executed before rebase is run during `reapply`, `slide-out`, `traverse`, `update` and `post-commit`.
               Note that it is NOT executed by `squash` (despite its similarity to `reapply`), since no rebase is involved in `squash`.
 
               The parameters are exactly the three revisions that are passed to `git rebase --onto`:
@@ -1404,6 +1405,18 @@ long_docs: dict[str, str] = {
            `GIT_MACHETE_REBASE_OPTS`
               Extra options to pass to the underlying `git rebase` invocation, space-separated.
               Example: `GIT_MACHETE_REBASE_OPTS="--keep-empty --rebase-merges" git machete update`.
+
+   """,
+    "post-commit": """
+        <b>Usage:</b><b>
+           git machete post-commit</b>
+
+        Restack the child branches of the current branch after a commit has been made on the current branch. This command is meant to be run as a `post-commit` git hook.
+
+        <b>Environment variables:</b>
+           `GIT_MACHETE_REBASE_OPTS`
+              Extra options to pass to the underlying `git rebase` invocation, space-separated.
+              Example: `GIT_MACHETE_REBASE_OPTS="--keep-empty --rebase-merges" git machete post-commit`.
 
    """,
     "version": """

@@ -55,7 +55,7 @@ command_groups: list[tuple[str, list[str]]] = [
     ("Determine changes specific to the given branch",
      ["diff", "fork-point", "log"]),
     ("Update git history in accordance with the tree of branch dependencies",
-     ["advance", "reapply", "slide-out", "squash", "traverse", "update"]),
+     ["advance", "reapply", "slide-out", "squash", "traverse", "update", "post-commit"]),
     ("Integrate with third party tools",
      ["github", "gitlab"])
 ]
@@ -412,6 +412,13 @@ def create_cli_parser() -> argparse.ArgumentParser:
     update_parser.add_argument('-n', action='store_true')
     update_parser.add_argument('--no-edit-merge', action='store_true')
     update_parser.add_argument('--no-interactive-rebase', action='store_true')
+
+    update_parser = subparsers.add_parser(
+        'post-commit',
+        argument_default=argparse.SUPPRESS,
+        usage=argparse.SUPPRESS,
+        add_help=False,
+        parents=[common_args_parser])
 
     subparsers.add_parser(
         'version',
@@ -917,6 +924,10 @@ def launch(orig_args: list[str]) -> None:
                 opt_no_edit_merge=cli_opts.opt_no_edit_merge,
                 opt_no_interactive_rebase=cli_opts.opt_no_interactive_rebase,
                 opt_fork_point=cli_opts.opt_fork_point)
+        elif cmd == "post-commit":
+            machete_client.read_branch_layout_file(perform_interactive_slide_out=False)
+            git.expect_no_operation_in_progress()
+            machete_client.post_commit()
         else:  # an unknown command is handled by argparse
             raise UnexpectedMacheteException(f"Unknown command: `{cmd}`")
     finally:
